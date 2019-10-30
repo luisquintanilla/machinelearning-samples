@@ -5,6 +5,8 @@ using System.IO;
 using Microsoft.ML;
 using static Microsoft.ML.DataOperationsCatalog;
 using Microsoft.ML.Transforms;
+using Microsoft.ML.Vision;
+
 
 namespace DeepLearning_ImageClassification_Binary
 {
@@ -26,10 +28,9 @@ namespace DeepLearning_ImageClassification_Binary
             var preprocessingPipeline = mlContext.Transforms.Conversion.MapValueToKey(
                     inputColumnName: "Label",
                     outputColumnName: "LabelAsKey")
-                .Append(mlContext.Transforms.LoadImages(
+                .Append(mlContext.Transforms.LoadRawImageBytes(
                     outputColumnName: "Image",
                     imageFolder: assetsRelativePath,
-                    useImageType: false,
                     inputColumnName: "ImagePath"));
 
             IDataView preProcessedData = preprocessingPipeline
@@ -43,18 +44,18 @@ namespace DeepLearning_ImageClassification_Binary
             IDataView validationSet = validationTestSplit.TrainSet;
             IDataView testSet = validationTestSplit.TestSet;
 
-            var trainingPipeline = mlContext.Model.ImageClassification(
-                    featuresColumnName: "Image",
-                    labelColumnName: "LabelAsKey",
-                    arch: ImageClassificationEstimator.Architecture.ResnetV2101,
-                    epoch: 100,
-                    batchSize: 20,
-                    testOnTrainSet: false,
-                    metricsCallback: (metrics) => Console.WriteLine(metrics),
-                    validationSet: validationSet,
-                    reuseTrainSetBottleneckCachedValues: true,
-                    reuseValidationSetBottleneckCachedValues: true,
-                    disableEarlyStopping: false)
+            var classifierOptions = new ImageClassificationTrainer.Options()
+            {
+                FeatureColumnName="Image",
+                LabelColumnName="LabelAsKey",
+                ValidationSet=validationSet,
+                Arch = ImageClassificationTrainer.Architecture.ResnetV2101,
+                TestOnTrainSet = false,
+                ReuseTrainSetBottleneckCachedValues = true,
+                ReuseValidationSetBottleneckCachedValues = true,
+            };
+
+            var trainingPipeline = mlContext.MulticlassClassification.Trainers.ImageClassification(classifierOptions)
                 .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
 
             ITransformer trainedModel = trainingPipeline.Fit(trainSet);
